@@ -47,7 +47,7 @@ void set_rand(T* vec, size_t size, size_t nv, type_t order) {
     if (order == COL) {   //column-wise order
         for (j = 0; j < nv; j++) {
             for (i = 0; i < size; i++) {
-                vec[j*size + i] = (T)dbl_pseudo_rand(j*size + i) - 0.5;
+                vec[j*size + i] = (T)dbl_pseudo_rand(j + i*nv) - 0.5;
             }
         }
     } else if (order == ROW) {              //row-wise order
