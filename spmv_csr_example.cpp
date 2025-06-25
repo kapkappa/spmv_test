@@ -8,18 +8,47 @@
 
 #include "cuda_defs.h"
 
+#ifdef FP64
 #define FP double
 #define CU_FP CUDA_R_64F
+#endif
 
 #ifdef FP32
 #define FP float
 #define CU_FP CUDA_R_32F
 #endif
 
+#ifndef FP
+#define FP double
+#endif
+
+#ifndef CU_FP
+#define CU_FP CUDA_R_64F
+#endif
+
 //#ifdef FP16
 //#define FP float16_t
 //#define CU_FP CUDA_R_16F
 //#endif
+
+
+#ifdef ALG0
+#define ALG CUSPARSE_SPMV_ALG_DEFAULT
+#endif
+
+#ifdef ALG1
+#define ALG CUSPARSE_SPMV_CSR_ALG1
+#endif
+
+#ifdef ALG2
+#define ALG CUSPARSE_SPMV_CSR_ALG2
+#endif
+
+#ifndef ALG
+#define ALG CUSPARSE_SPMV_ALG_DEFAULT
+#endif
+
+
 
 #ifndef CUSPARSE_VERSION
 #if defined(CUSPARSE_VER_MAJOR) && defined(CUSPARSE_VER_MINOR) && defined(CUSPARSE_VER_PATCH)
@@ -75,7 +104,7 @@ int main(int argc, char**argv) {
     set_rand<FP>(x, nrows, nv, ROW);
 
     FP alpha = 1.0;
-    FP beta = 0.0;
+    FP beta = 1.0;
 
     ncols = nrows;
 
@@ -124,16 +153,17 @@ int main(int argc, char**argv) {
     CHECK_CUSPARSE( cusparseSpMV_bufferSize(
                                  handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                  &alpha, matA, vecX, &beta, vecY, CU_FP,
-                                 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
+                                 ALG, &bufferSize) )
     CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) )
 
 #if CUSPARSE_VERSION >= 12400
+    printf("cuSPARSE version >= 12400, preprocessing\n");
     CHECK_CUSPARSE( cusparseSpMV_preprocess(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                  &alpha, matA, vecX, &beta, vecY, CU_FP,
-                                 CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) )
+                                 ALG, dBuffer) )
 #endif
 
-    int nwarmups = 5;
+    int nwarmups = 10;
     int niters = atoi(argv[2]);
 
     double dt = 0.0;
@@ -142,18 +172,18 @@ int main(int argc, char**argv) {
     for (it = 0; it < niters + nwarmups; it++) {
 
         int loop_iters = 10;
-
+#ifdef AX_Y
         set_const<FP>(y, nrows, 0.0);
         set_rand<FP>(x, nrows, nv, ROW);
         CHECK_CUDA( cudaMemcpy(dX, x, ncols * sizeof(FP), cudaMemcpyHostToDevice) )
         CHECK_CUDA( cudaMemcpy(dY, y, nrows * sizeof(FP), cudaMemcpyHostToDevice) )
-
+#endif
         double t1 = timer();
         for (i = 0; i < loop_iters; i++) {
             CHECK_CUDA( cudaDeviceSynchronize() )
             CHECK_CUSPARSE( cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                          &alpha, matA, vecX, &beta, vecY, CU_FP,
-                                         CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) )
+                                         ALG, dBuffer) )
         }
         double t2 = timer();
 

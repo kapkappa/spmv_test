@@ -8,8 +8,10 @@
 
 #include "cuda_defs.h"
 
+#ifdef FP64
 #define FP double
 #define CU_FP CUDA_R_64F
+#endif
 
 #ifdef FP32
 #define FP float
@@ -20,6 +22,50 @@
 //#define FP float16_t
 //#define CU_FP CUDA_R_16F
 //#endif
+
+#ifndef FP
+#define FP double
+#endif
+
+#ifndef CU_FP
+#define CU_FP CUDA_R_64F
+#endif
+
+
+#ifdef ALG0
+#define ALG CUSPARSE_SPMM_ALG_DEFAULT
+#endif
+
+#ifdef ALG1
+#define ALG CUSPARSE_SPMM_CSR_ALG1
+#endif
+
+#ifdef ALG2
+#define ALG CUSPARSE_SPMM_CSR_ALG2
+#endif
+
+#ifdef ALG3
+#define ALG CUSPARSE_SPMM_CSR_ALG3
+#endif
+
+#ifndef ALG
+#define ALG CUSPARSE_SPMM_ALG_DEFAULT
+#endif
+
+
+#ifdef ORDER_ROW
+#define ORDER ROW
+#endif
+
+#ifdef ORDER_COL
+#define ORDER COL
+#endif
+
+#ifndef ORDER
+#define ORDER ROW
+#endif
+
+
 
 #ifndef CUSPARSE_VERSION
 #if defined(CUSPARSE_VER_MAJOR) && defined(CUSPARSE_VER_MINOR) && defined(CUSPARSE_VER_PATCH)
@@ -76,7 +122,7 @@ int main(int argc, char**argv) {
     FP *y=(FP*)calloc(vec_size, sizeof(FP));
 
     set_const<FP>(y, vec_size, 0.0);
-    set_rand<FP>(x, ncols, nv, ROW);
+    set_rand<FP>(x, ncols, nv, ORDER);
 
     FP alpha = 1.0;
     FP beta = 0.0;
@@ -119,22 +165,31 @@ int main(int argc, char**argv) {
                                       dA_csrOffsets, dA_columns, dA_values,
                                       CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
                                       CUSPARSE_INDEX_BASE_ZERO, CU_FP) )
+#if ORDER == ROW
     // Create dense matrix X
     CHECK_CUSPARSE( cusparseCreateDnMat(&matX, ncols, nv, nv, dX, CU_FP, CUSPARSE_ORDER_ROW) )
     // Create dense matrix y
     CHECK_CUSPARSE( cusparseCreateDnMat(&matY, nrows, nv, nv, dY, CU_FP, CUSPARSE_ORDER_ROW) )
+#else
+    // Create dense matrix X
+    CHECK_CUSPARSE( cusparseCreateDnMat(&matX, ncols, nv, nrows, dX, CU_FP, CUSPARSE_ORDER_COL) )
+    // Create dense matrix y
+    CHECK_CUSPARSE( cusparseCreateDnMat(&matY, nrows, nv, nrows, dY, CU_FP, CUSPARSE_ORDER_COL) )
+
+#endif
     // allocate an external buffer if needed
     CHECK_CUSPARSE( cusparseSpMM_bufferSize(
                                  handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                  &alpha, matA, matX, &beta, matY, CU_FP,
-                                 CUSPARSE_SPMM_ALG_DEFAULT, &bufferSize) )
+                                 ALG, &bufferSize) )
     CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) )
 
 
 #if CUSPARSE_VERSION >= 12400
+    printf("cuSPARSE version >= 12400, preprocessing\n");
     CHECK_CUSPARSE( cusparseSpMM_preprocess(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                  &alpha, matA, matX, &beta, matY, CU_FP,
-                                 CUSPARSE_SPMM_ALG_DEFAULT, dBuffer) )
+                                 ALG, dBuffer) )
 #endif
 
     int nwarmups = 5;
@@ -146,18 +201,18 @@ int main(int argc, char**argv) {
     for (it = 0; it < niters + nwarmups; it++) {
 
         int loop_iters = 10;
-
+#ifdef AX_Y
         set_const<FP>(y, vec_size, 0.0);
-        set_rand<FP>(x, ncols, nv, ROW);
+        set_rand<FP>(x, ncols, nv, ORDER);
         CHECK_CUDA( cudaMemcpy(dX, x, vec_size * sizeof(FP), cudaMemcpyHostToDevice) )
         CHECK_CUDA( cudaMemcpy(dY, y, vec_size * sizeof(FP), cudaMemcpyHostToDevice) )
-
+#endif
         double t1 = timer();
         for (i = 0; i < loop_iters; i++) {
             CHECK_CUDA( cudaDeviceSynchronize() )
             CHECK_CUSPARSE( cusparseSpMM(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                          &alpha, matA, matX, &beta, matY, CU_FP,
-                                         CUSPARSE_SPMM_ALG_DEFAULT, dBuffer) )
+                                         ALG, dBuffer) )
         }
         double t2 = timer();
 
@@ -182,7 +237,7 @@ int main(int argc, char**argv) {
                            cudaMemcpyDeviceToHost) )
 
 
-    print_norm<FP>(y, nrows, nv, ROW);
+    print_norm<FP>(y, nrows, nv, ORDER);
 
 
     //--------------------------------------------------------------------------

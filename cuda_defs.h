@@ -1,8 +1,5 @@
 #pragma once
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #define CHECK_CUDA(func)                                                       \
 {                                                                              \
     cudaError_t status = (func);                                               \
