@@ -15,11 +15,15 @@ function get_minimum {
 function run_spmv {
 
     matrix_type=$1
-    M_PATH="/mnt/data/matrices"
-    M_LIST="matrices_names"
+
+    if [ $matrix_type == "ssmc" ]; then
+        M_PATH="/mnt/data/matrices"
+        M_LIST="matrices_for_tensor_cores.txt"
+    fi
+
     if [ $matrix_type == "gen" ]; then
-        M_PATH="/home/kupkupa/generated_matrices"
-        M_LIST="generated_matrices_names"
+        M_PATH="/mnt/data/generated_matrices"
+        M_LIST="generated_matrices_for_tensor_cores.txt"
     fi
 
     I_TEST=$2
@@ -84,18 +88,23 @@ if [ 0 -eq 1 ]; then
     done
 fi
 ###################################################################################################
+
+
+
+###################################################################################################
 if [ 0 -eq 1 ]; then
     for ORDER in ORDER_ROW ORDER_COL; do
         for i in ALG0 ALG1 ALG2 ALG3; do
-            make ALG_TYPE=-D${i} ORDER_TYPE=-D${ORDER} FP_TYPE=-DFP64 OP_TYPE=-DAX_Y
+            make ALG_TYPE=-D${i} ORDER_TYPE=-D${ORDER} FP_TYPE=-DFP64 OP_TYPE=-DAXPY
 
-            run_spmm "ssmc" 20 16 log.cusparse.ax_y.nv16.fp64.$ORDER.$i
-            run_spmm "gen" 20 16 log.cusparse.ax_y.nv16.fp64.$ORDER.$i
+            run_spmm "ssmc" 20 16 log.cusparse.axpy.nv16.fp64.$ORDER.$i
+            run_spmm "gen" 20 16 log.cusparse.axpy.nv16.fp64.$ORDER.$i
 
-            make ALG_TYPE=-D${i} ORDER_TYPE=-D${ORDER} FP_TYPE=-DFP32 OP_TYPE=-DAX_Y
+            make ALG_TYPE=-D${i} ORDER_TYPE=-D${ORDER} FP_TYPE=-DFP32 OP_TYPE=-DAXPY
 
-            run_spmm "ssmc" 20 16 log.cusparse.ax_y.nv16.fp32.$ORDER.$i
-            run_spmm "gen" 20 16 log.cusparse.ax_y.nv16.fp32.$ORDER.$i
+            run_spmm "ssmc" 20 16 log.cusparse.axpy.nv16.fp32.$ORDER.$i
+            run_spmm "gen" 20 16 log.cusparse.axpy.nv16.fp32.$ORDER.$i
         done
     done
 fi
+###################################################################################################

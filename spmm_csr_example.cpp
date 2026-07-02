@@ -55,14 +55,17 @@
 
 #ifdef ORDER_ROW
 #define ORDER ROW
+#define ORDER_T 0
 #endif
 
 #ifdef ORDER_COL
 #define ORDER COL
+#define ORDER_T 1
 #endif
 
 #ifndef ORDER
 #define ORDER ROW
+#define ORDER_T 0
 #endif
 
 
@@ -165,7 +168,7 @@ int main(int argc, char**argv) {
                                       dA_csrOffsets, dA_columns, dA_values,
                                       CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
                                       CUSPARSE_INDEX_BASE_ZERO, CU_FP) )
-#if ORDER == ROW
+#if ORDER_T == 0
     // Create dense matrix X
     CHECK_CUSPARSE( cusparseCreateDnMat(&matX, ncols, nv, nv, dX, CU_FP, CUSPARSE_ORDER_ROW) )
     // Create dense matrix y
